@@ -4,8 +4,9 @@ import torch
 from torch.utils.tensorboard import SummaryWriter
 import data_utils, datasets
 import global_constants as settings
-from eval_utils import validate, small_lesion_validate
-from log_utils import log
+from eval_utils import validateMRI, validateRGB, small_lesion_validate
+from log_utils import log, save_MRI_prediction_img, save_RGB_prediction_img
+from data_utils import get_scan_type
 from transforms import Transforms
 from spin_model import SPiNModel
 from sampler import PositiveClassSampler
@@ -64,7 +65,6 @@ def train(train_multimodal_scan_paths,
           w_weight_decay_subpixel_embedding=settings.W_WEIGHT_DECAY,
           # Segmentation loss function
           loss_func_segmentation=settings.LOSS_FUNC_SEGMENTATION,
-          w_cross_entropy=settings.W_CROSS_ENTROPY,
           w_weight_decay_segmentation=settings.W_WEIGHT_DECAY,
           w_positive_class=settings.W_POSITIVE_CLASS,
           # Checkpoint settings
@@ -120,8 +120,6 @@ def train(train_multimodal_scan_paths,
     for paths in val_multimodal_scan_paths:
         assert len(paths) == len(ground_truth_paths)
 
-    input_channels = n_chunk
-
     n_train_sample = len(train_multimodal_scan_paths[0])
     n_train_step = \
         learning_schedule[-1] * np.ceil(n_train_sample / n_batch).astype(np.int32)
@@ -137,18 +135,68 @@ def train(train_multimodal_scan_paths,
         positive_class_sample_schedule=positive_class_sample_schedule,
         positive_class_size_thresholds=positive_class_size_thresholds)
 
+    # Determine which data type to use
+    scan_type = get_scan_type(train_multimodal_scan_paths[0][0])
     # Training dataloader
-    train_dataloader = torch.utils.data.DataLoader(
-        datasets.SPiNTrainingDataset(
-            multimodal_scan_paths=train_multimodal_scan_paths,
-            ground_truth_paths=train_ground_truth_paths,
-            shape=(n_chunk, n_height, n_width),
-            padding_constants=dataset_means,
-            positive_class_sampler=positive_class_sampler),
-        batch_size=n_batch,
-        shuffle=True,
-        num_workers=n_thread,
-        drop_last=False)
+    if scan_type == 'MRI':
+        train_dataloader = torch.utils.data.DataLoader(
+            datasets.SPiNMRITrainingDataset(
+                multimodal_scan_paths=train_multimodal_scan_paths,
+                ground_truth_paths=train_ground_truth_paths,
+                shape=(n_chunk, n_height, n_width),
+                padding_constants=dataset_means,
+                positive_class_sampler=positive_class_sampler),
+            batch_size=n_batch,
+            shuffle=True,
+            num_workers=n_thread,
+            drop_last=False)
+
+        # Validation dataloader
+        val_dataloader = torch.utils.data.DataLoader(
+            datasets.SPiNMRIInferenceDataset(
+                multimodal_scan_paths=val_multimodal_scan_paths,
+                shape=(None, None)),
+            batch_size=1,
+            shuffle=False,
+            num_workers=1,
+            drop_last=False)
+
+        val_transforms = Transforms(
+            dataset_means=dataset_means,
+            dataset_stddevs=dataset_stddevs,
+            dataset_normalization=dataset_normalization)
+
+        input_channels = n_chunk
+        # Set appropriate functions
+        validate = validateMRI
+        save_prediction_img = save_MRI_prediction_img
+    elif scan_type == 'RGB':
+        train_dataloader = torch.utils.data.DataLoader(
+            datasets.SPiNRGBTrainingDataset(
+                scan_paths=train_multimodal_scan_paths[0],
+                ground_truth_paths=train_ground_truth_paths,
+                shape=(n_height, n_width),
+                padding_constant=dataset_means[0]),
+            batch_size=n_batch,
+            shuffle=True,
+            num_workers=n_thread,
+            drop_last=False)
+
+        # Validation dataloader
+        val_dataloader = torch.utils.data.DataLoader(
+            datasets.SPiNRGBInferenceDataset(
+                scan_paths=val_multimodal_scan_paths[0],
+                shape=(None, None)),
+            batch_size=1,
+            shuffle=False,
+            num_workers=1,
+            drop_last=False)
+
+        input_channels = 3  # RGB scans have 3 channels
+        validate = validateRGB
+        save_prediction_img = save_RGB_prediction_img
+    else:
+        raise ValueError('Dataset not supported.')
 
     train_transforms = Transforms(
         dataset_means=dataset_means,
@@ -159,16 +207,6 @@ def train(train_multimodal_scan_paths,
         random_noise_type=augmentation_noise_type,
         random_noise_spread=augmentation_noise_spread,
         random_resize_and_pad=augmentation_resize_and_pad)
-
-    # Validation dataloader
-    val_dataloader = torch.utils.data.DataLoader(
-        datasets.SPiNInferenceDataset(
-            multimodal_scan_paths=val_multimodal_scan_paths,
-            shape=(None, None)),
-        batch_size=1,
-        shuffle=False,
-        num_workers=1,
-        drop_last=False)
 
     val_transforms = Transforms(
         dataset_means=dataset_means,
@@ -254,7 +292,6 @@ def train(train_multimodal_scan_paths,
         w_weight_decay_subpixel_embedding=w_weight_decay_subpixel_embedding if 'none' not in encoder_type_subpixel_embedding else None,
         # Segmentation network loss settings
         loss_func_segmentation=loss_func_segmentation,
-        w_cross_entropy=w_cross_entropy,
         w_weight_decay_segmentation=w_weight_decay_segmentation,
         w_positive_class=w_positive_class)
 
@@ -342,9 +379,8 @@ def train(train_multimodal_scan_paths,
             train_step = train_step + 1
 
             # Move data to device
-            if device.type == settings.CUDA:
-                train_scan = train_scan.cuda()
-                train_ground_truth = train_ground_truth.cuda()
+            train_scan = train_scan.to(device)
+            train_ground_truth = train_ground_truth.to(device)
 
             [train_scan], [train_ground_truth] = train_transforms.transform(
                 images_arr=[train_scan],
@@ -359,7 +395,6 @@ def train(train_multimodal_scan_paths,
                 output_logits=output_logits,
                 ground_truth=train_ground_truth,
                 loss_func_segmentation=loss_func_segmentation,
-                w_cross_entropy=w_cross_entropy,
                 w_positive_class=w_positive_class)
 
             # Compute gradient and backpropagate
@@ -399,6 +434,7 @@ def train(train_multimodal_scan_paths,
                         model=model,
                         dataloader=val_dataloader,
                         transforms=val_transforms,
+                        save_prediction_img=save_prediction_img,
                         ground_truths=val_ground_truths,
                         step=train_step,
                         log_path=log_path,
@@ -428,6 +464,7 @@ def train(train_multimodal_scan_paths,
             model=model,
             dataloader=val_dataloader,
             transforms=val_transforms,
+            save_prediction_img=save_prediction_img,
             ground_truths=val_ground_truths,
             step=train_step,
             log_path=log_path,
@@ -536,14 +573,33 @@ def run(multimodal_scan_paths,
     log('', log_path)
 
     # Set up dataloader
-    dataloader = torch.utils.data.DataLoader(
-        datasets.SPiNInferenceDataset(
-            multimodal_scan_paths=multimodal_scan_paths,
-            shape=(None, None)),
-        batch_size=1,
-        shuffle=False,
-        num_workers=1,
-        drop_last=False)
+     # Determine which data type to use
+    scan_type = get_scan_type(multimodal_scan_paths[0][0])
+    # Training dataloader
+    if scan_type == 'MRI':
+        dataloader = torch.utils.data.DataLoader(
+            datasets.SPiNMRIInferenceDataset(
+                multimodal_scan_paths=multimodal_scan_paths,
+                shape=(None, None)),
+            batch_size=1,
+            shuffle=False,
+            num_workers=1,
+            drop_last=False)
+        input_channels = n_chunk
+        validate = validateMRI
+        save_prediction_img = save_MRI_prediction_img
+    elif scan_type == 'RGB':
+        dataloader = torch.utils.data.DataLoader(
+            datasets.SPiNRGBInferenceDataset(
+                scan_paths=multimodal_scan_paths[0],
+                shape=(None, None)),
+            batch_size=1,
+            shuffle=False,
+            num_workers=1,
+            drop_last=False)
+        input_channels = 3  # RGB
+        validate = validateRGB
+        save_prediction_img = save_RGB_prediction_img
 
     transforms = Transforms(
         dataset_means=dataset_means,
@@ -557,8 +613,6 @@ def run(multimodal_scan_paths,
             n_samples=len(dataloader))
     else:
         small_lesion_idxs = None
-
-    input_channels = n_chunk
 
     # Build subpixel network (SPiN)
     model = SPiNModel(
@@ -664,10 +718,11 @@ def run(multimodal_scan_paths,
                     model=model,
                     dataloader=dataloader,
                     transforms=transforms,
-                    ground_truths=ground_truths,
-                    test_time_flip_type=augmentation_flip_type,
                     step=0,
                     log_path=log_path,
+                    save_prediction_img=save_prediction_img,
+                    ground_truths=ground_truths,
+                    test_time_flip_type=augmentation_flip_type,
                     dataset_means=dataset_means,
                     n_chunk=n_chunk,
                     best_results=best_results,
@@ -681,9 +736,10 @@ def run(multimodal_scan_paths,
                 model=model,
                 dataloader=dataloader,
                 transforms=transforms,
+                log_path=log_path,
+                save_prediction_img=save_prediction_img,
                 test_time_flip_type=augmentation_flip_type,
                 step=0,
-                log_path=log_path,
                 dataset_means=dataset_means,
                 n_chunk=n_chunk,
                 best_results=best_results,
@@ -835,7 +891,6 @@ def log_network_settings(log_path,
 def log_loss_func_settings(log_path,
                            w_weight_decay_subpixel_embedding=None,
                            loss_func_segmentation='cross_entropy',
-                           w_cross_entropy=1.00,
                            w_weight_decay_segmentation=0.00,
                            w_positive_class=1.00):
 
@@ -851,8 +906,8 @@ def log_loss_func_settings(log_path,
     log('Segmentation loss function settings:', log_path)
     log('loss_func={}'.format(loss_func_segmentation),
         log_path)
-    log('w_cross_entropy={:.2f}  w_weight_decay={:.1e}  w_positive_class={}'.format(
-        w_cross_entropy, w_weight_decay_segmentation, w_positive_class),
+    log('w_weight_decay={:.1e}  w_positive_class={}'.format(
+        w_weight_decay_segmentation, w_positive_class),
         log_path)
     log('', log_path)
 
@@ -900,6 +955,10 @@ def log_training_settings(log_path,
                 start, end, start * (n_train_sample // n_batch), end * (n_train_sample // n_batch), v)
                 for start, end, v in zip([0] + positive_class_sample_schedule[:-1], positive_class_sample_schedule, positive_class_sample_rates)),
             log_path)
+
+    log('positive_class_size_thresholds={}'.format(positive_class_size_thresholds),
+        log_path)
+
     if -1 in augmentation_schedule:
         end = learning_schedule[-1]
 

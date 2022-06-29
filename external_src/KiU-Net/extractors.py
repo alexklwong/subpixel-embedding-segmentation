@@ -156,7 +156,7 @@ class ResNet(nn.Module):
 
 
 '''
-    Implementation of DenseNet with deep supervision. Downsampling is changed to 8x 
+    Implementation of DenseNet with deep supervision. Downsampling is changed to 8x
 '''
 
 

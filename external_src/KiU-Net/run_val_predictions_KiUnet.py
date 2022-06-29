@@ -16,7 +16,7 @@ parser.add_argument('--n_samples', type=int, default=27, help='number of patient
 parser.add_argument('--n_classes', type=int, default=2, help='number of classes gets predicted (default: 2)')
 parser.add_argument('--log_path', type=str, help='the path to log the statistics')
 parser.add_argument('--image_size', nargs='+', type=int, default=(224, 192), help='the size of the image to reshape to')
-parser.add_argument('--validation_path', type=str, default='validation/atlas/trainval/atlas_trainval_val_annotations.txt', 
+parser.add_argument('--validation_path', type=str, default='validation/atlas/trainval/atlas_trainval_val_annotations.txt',
     help='paths to validation data')
 parser.add_argument('--direc', default='./special', type=str,
                 help='directory to save the outputs')
@@ -53,7 +53,7 @@ if __name__ == "__main__":
 
     output_paths = os.listdir(PREDICTION_PATH)
     for idx, path in enumerate(output_paths):
-        
+
         patient = path[:-4]
         patient_all.append(patient)
         output_load_path = os.path.join(PREDICTION_PATH, path)
@@ -103,7 +103,7 @@ if __name__ == "__main__":
         #     label_resize_single = Image.fromarray(gt_np[i, ...]).crop((10, 40, 190, 220))
         #     label_resize_single = label_resize_single.resize(size, Image.ANTIALIAS)
         #     label_resize_single = np.asarray(label_resize_single)
-            
+
         #     gt_resized.append(label_resize_single)
         # gt_resized = np.array(gt_resized)
         # gt_resized = gt_resized - gt_resized.min()

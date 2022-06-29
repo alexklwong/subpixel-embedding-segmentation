@@ -99,7 +99,7 @@ def make_weighted_metric(classwise_metric):
 
         classwise_scores = classwise_metric(output, gt).cpu()
 
-        return classwise_scores 
+        return classwise_scores
 
     return weighted_metric
 

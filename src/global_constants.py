@@ -86,3 +86,13 @@ ATLAS_MIN                               = -3.316535e-05
 ATLAS_MAX                               = 100.00001
 ATLAS_MEAN                              = 30.20063
 ATLAS_SD                                = 35.221165
+
+WARWICK_MIN                             = 0.0
+WARWICK_MAX                             = 255.0
+WARWICK_MEAN                            = 177.20422
+WARWICK_SD                              = 58.42384
+
+RITE_MIN                                = 0.0
+RITE_MAX                                = 255.0
+RITE_MEAN                               = 79.09129
+RITE_SD                                 = 70.204414

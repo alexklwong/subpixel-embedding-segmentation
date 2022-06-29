@@ -1,0 +1,31 @@
+export CUDA_VISIBLE_DEVICES=0
+
+python src/run_spin.py \
+--multimodal_scan_paths testing/rite/traintest/rite_test_scans.txt \
+--ground_truth_path testing/rite/traintest/rite_test_ground_truths_vessel.txt \
+--dataset_normalization standard \
+--dataset_means 177.20422 \
+--dataset_stddevs 58.42384 \
+--encoder_type_subpixel_embedding resnet5_subpixel_embedding \
+--n_filters_encoder_subpixel_embedding 16 16 16 \
+--decoder_type_subpixel_embedding subpixel \
+--n_filter_decoder_subpixel_embedding 16 \
+--output_channels_subpixel_embedding 8 \
+--output_func_subpixel_embedding linear \
+--encoder_type_segmentation resnet18 \
+--n_filters_encoder_segmentation 32 64 128 196 196 \
+--resolutions_subpixel_guidance 0 1 \
+--n_filters_subpixel_guidance 8 8 \
+--n_convolutions_subpixel_guidance 1 1 \
+--decoder_type_segmentation subpixel_guidance learnable_downsampler \
+--n_filters_decoder_segmentation 196 128 64 32 16 16 \
+--n_filters_learnable_downsampler 16 16 \
+--kernel_sizes_learnable_downsampler 3 3 \
+--augmentation_flip_type none \
+--activation_func leaky_relu \
+--use_batch_norm \
+--do_visualize_predictions \
+--checkpoint_path evaluation_results/spin/spin_rite_traintest \
+--restore_path trained_spin_models/rite/spin_traintest/ \
+--device gpu \
+--n_thread 8

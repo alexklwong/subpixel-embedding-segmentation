@@ -224,7 +224,7 @@ parser.add_argument('--save_freq', type=int,default = 5)
 
 parser.add_argument('--modelname', default='off', type=str,
                     help='model name')
-parser.add_argument('--cuda', default="on", type=str, 
+parser.add_argument('--cuda', default="on", type=str,
                     help='switch on/off cuda option (default: on)')
 
 parser.add_argument('--load', default='default', type=str,
@@ -240,9 +240,9 @@ parser.add_argument('--device', default='cuda', type=str)
 parser.add_argument('--loaddirec', default='load', type=str, help='path to the model to be restored')
 parser.add_argument('--visual_paths', type=str, nargs='+', help='path to store the visualization results')
 parser.add_argument('--small_lesion_only', action='store_true', default=False, help='whether to store visualization for small lesion images only')
-parser.add_argument('--validation_path', type=str, default='validation/atlas/trainval/atlas_trainval_val_annotations.txt', 
+parser.add_argument('--validation_path', type=str, default='testing/atlas/traintest/atlas_test_ground_truths.txt',
     help='paths to validation data')
-parser.add_argument('--small_lesion_idx', type=str, default='data/atlas_lesion_segmentation_small_lesions/validation_small_lesion_idxs.txt',
+parser.add_argument('--small_lesion_idx', type=str, default='testing/atlas/traintest/atlas_test_small_lesion_map_indices.txt',
     help='path to small lesion idx')
 parser.add_argument('--n_samples', type=int, default=27, help='number of patients in the validation set')
 parser.add_argument('--n_classes', type=int, default=2, help='number of classes gets predicted (default: 2)')
@@ -260,7 +260,7 @@ def add_noise(img):
     noisy_img = img + noise.cuda()
 
     return noisy_img
-     
+
 
 if args.crop is not None:
     crop = (args.crop, args.crop)
@@ -309,7 +309,7 @@ metric_list = MetricList({'jaccard': partial(jaccard_index),
 
 with open(args.validation_path, 'r') as val_data_order:
     val_list = val_data_order.readlines()
-val_list = [p.rstrip()[37:50] for p in val_list]
+val_list = [p.rstrip()[36:49] for p in val_list]
 val_dict = {p:i for i, p in enumerate(val_list)}
 if args.visual_paths is not None:
     if not os.path.exists(args.visual_paths[0]):
@@ -383,7 +383,7 @@ with torch.no_grad():
         yval = tmp2
 
         epsilon = 1e-20
-        
+
         del X_batch, y_batch,tmp,tmp2, y_out
 
         # count = count + 1
@@ -403,7 +403,7 @@ for name, output in outputs.items():
     save_file = os.path.join(direc, "{}.npy".format(name))
     np.save(save_file, np.array(output))
 
-# added code below to run the evaluation on the output. 
+# added code below to run the evaluation on the output.
 # Create an 1D array for each metric that holds the value for each metric
 n_samples = args.n_samples
 n_classes = args.n_classes
@@ -435,7 +435,7 @@ gt_paths = [gt_path.rstrip() for gt_path in gt_paths]
 
 output_paths = os.listdir(PREDICTION_PATH)
 for idx, path in enumerate(output_paths):
-    
+
     patient = path[:-4]
     patient_all.append(patient)
     output_load_path = os.path.join(PREDICTION_PATH, path)

@@ -1,7 +1,6 @@
 import torch, torchvision
 import losses
 import networks, log_utils
-import global_constants as settings
 
 
 class SPiNModel(object):
@@ -54,26 +53,26 @@ class SPiNModel(object):
     '''
 
     def __init__(self,
-                 input_channels=settings.N_CHUNK,
-                 encoder_type_subpixel_embedding=settings.ENCODER_TYPE_SUBPIXEL_EMBEDDING,
-                 n_filters_encoder_subpixel_embedding=settings.N_FILTERS_ENCODER_SUBPIXEL_EMBEDDING,
-                 decoder_type_subpixel_embedding=settings.DECODER_TYPE_SUBPIXEL_EMBEDDING,
-                 output_channels_subpixel_embedding=settings.OUTPUT_CHANNELS_SUBPIXEL_EMBEDDING,
-                 n_filter_decoder_subpixel_embedding=settings.N_FILTER_DECODER_SUBPIXEL_EMBEDDING,
-                 output_func_subpixel_embedding=settings.OUTPUT_FUNC,
-                 encoder_type_segmentation=settings.ENCODER_TYPE_SEGMENTATION,
-                 n_filters_encoder_segmentation=settings.N_FILTERS_ENCODER_SEGMENTATION,
-                 resolutions_subpixel_guidance=settings.RESOLUTIONS_SUBPIXEL_GUIDANCE,
-                 n_filters_subpixel_guidance=settings.N_FILTERS_SUBPIXEL_GUIDANCE,
-                 n_convolutions_subpixel_guidance=settings.N_CONVOLUTIONS_SUBPIXEL_GUIDANCE,
-                 decoder_type_segmentation=settings.DECODER_TYPE_SEGMENTATION,
-                 n_filters_decoder_segmentation=settings.N_FILTERS_DECODER_SEGMENTATION,
-                 n_filters_learnable_downsampler=settings.N_FILTERS_LEARNABLE_DOWNSAMPLER,
-                 kernel_sizes_learnable_downsampler=settings.KERNEL_SIZES_LEARNABLE_DOWNSAMPLER,
-                 weight_initializer=settings.WEIGHT_INITIALIZER,
-                 activation_func=settings.ACTIVATION_FUNC,
-                 use_batch_norm=settings.USE_BATCH_NORM,
-                 device=torch.device(settings.CUDA)):
+                 input_channels,
+                 encoder_type_subpixel_embedding,
+                 n_filters_encoder_subpixel_embedding,
+                 decoder_type_subpixel_embedding,
+                 output_channels_subpixel_embedding,
+                 n_filter_decoder_subpixel_embedding,
+                 output_func_subpixel_embedding,
+                 encoder_type_segmentation,
+                 n_filters_encoder_segmentation,
+                 resolutions_subpixel_guidance,
+                 n_filters_subpixel_guidance,
+                 n_convolutions_subpixel_guidance,
+                 decoder_type_segmentation,
+                 n_filters_decoder_segmentation,
+                 n_filters_learnable_downsampler,
+                 kernel_sizes_learnable_downsampler,
+                 weight_initializer,
+                 activation_func,
+                 use_batch_norm,
+                 device=torch.device('cuda')):
 
         self.encoder_type_subpixel_embedding = encoder_type_subpixel_embedding
         self.decoder_type_subpixel_embedding = decoder_type_subpixel_embedding
@@ -290,15 +289,16 @@ class SPiNModel(object):
         Forwards the input through the network
 
         Arg(s):
-            input_scan : tensor[float32]
+            input_scan : torch.Tensor[float32]
                 input MRI scan
 
         Returns:
-            list[tensor] : lesion segmentation in a list
+            list[torch.Tensor] : lesion segmentation in a list
         '''
 
         # Remove extra dimension (should be 1) from N x C x D x H x W to get N x C x H x W
-        input_scan = input_scan[:, :, 0, :, :]
+        if len(input_scan.shape) == 5:
+            input_scan = input_scan[:, :, 0, :, :]
         self.input_scan = input_scan
 
         if self.use_subpixel_guidance:
@@ -370,25 +370,22 @@ class SPiNModel(object):
     def compute_loss(self,
                      output_logits,
                      ground_truth,
-                     loss_func_segmentation=settings.LOSS_FUNC_SEGMENTATION,
-                     w_cross_entropy=settings.W_CROSS_ENTROPY,
-                     w_positive_class=settings.W_POSITIVE_CLASS):
+                     loss_func_segmentation,
+                     w_positive_class):
         '''
         Computes the loss function
 
         Arg(s):
-            output_logits : list[tensor[float32]]
+            output_logits : list[torch.Tensor[float32]]
                 output segmentation logits
-            ground_truth : tensor[float32]
+            ground_truth : torch.Tensor[float32]
                 ground-truth segmentation class map
             loss_func_segmentation : list[str]
                 list of loss functions to use for super resolution
-            w_cross_entropy : float
-                weight of cross_entropy loss function
             w_positive_class : float
                 weight of positive class penalty
         Returns:
-            tensor[float32] : loss (scalar)
+            torch.Tensor[float32] : loss (scalar)
         '''
 
         output_height, output_width = output_logits[-1].shape[-2:]
@@ -404,8 +401,7 @@ class SPiNModel(object):
             ground_truth = ground_truth.long()
         else:
             height, width = target_height, target_width
-
-        self.output_logits = output_logits[-1].squeeze()
+        self.output_logits = output_logits[-1].squeeze(dim=1)
 
         # Squeeze ground truth to N x H x W
         self.ground_truth = ground_truth.squeeze(1)
@@ -437,7 +433,7 @@ class SPiNModel(object):
         Returns the list of parameters in the model
 
         Returns:
-            list : list of parameters
+            list[torch.Tensor[float32]] : list of parameters
         '''
 
         if self.use_subpixel_guidance:
@@ -577,11 +573,11 @@ class SPiNModel(object):
         Log the input scan, output logits, ground truth, error, and scalars to tensorboard
 
         Arg(s):
-            input_scan : tensor[float32]
+            input_scan : torch.Tensor[float32]
                 input N x C x 1 x H x W MRI scan
-            output_logits : tensor[float32]
+            output_logits : torch.Tensor[float32]
                 output of segmentation network
-            ground_truth : tensor[float32]
+            ground_truth : torch.Tensor[float32]
                 ground truth annotation
             scalar_dictionary : dict[str, float]
                 dictionary of scalar name and value to graph

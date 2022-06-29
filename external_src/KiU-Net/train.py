@@ -36,7 +36,7 @@ def mae(imageA, imageB):
     # NOTE: the two images must have the same dimension
     err = np.sum(abs(imageA.astype("float") - imageB.astype("float")) )
     err /= float(imageA.shape[0] * imageA.shape[1])
-    
+
     # return the MSE, the lower the error, the more "similar"
     # the two images are
     return err
@@ -65,7 +65,7 @@ parser.add_argument('--save_freq', type=int,default = 5)
 
 parser.add_argument('--modelname', default='off', type=str,
                     help='turn on img augmentation (default: False)')
-parser.add_argument('--cuda', default="on", type=str, 
+parser.add_argument('--cuda', default="on", type=str,
                     help='switch on/off cuda option (default: off)')
 parser.add_argument('--aug', default='off', type=str,
                     help='turn on img augmentation (default: False)')
@@ -125,7 +125,7 @@ def add_noise(img):
     noise = torch.randn(img.size()) * 0.1
     noisy_img = img + noise.cuda()
     return noisy_img
-     
+
 
 if args.crop is not None:
     crop = (args.crop, args.crop)
@@ -186,13 +186,13 @@ for epoch in range(args.epochs):
 
     epoch_running_loss = 0
     model.train()
-    for batch_idx, (X_batch, y_batch, *rest) in enumerate(tqdm(dataloader)):        
-        
+    for batch_idx, (X_batch, y_batch, *rest) in enumerate(tqdm(dataloader)):
+
         ###augmentations
 
         X_batch = Variable(X_batch.to(device ='cuda'))
         y_batch = Variable(y_batch.to(device='cuda'))
-        
+
         numr = randint(0,9)
 
 
@@ -207,7 +207,7 @@ for epoch in range(args.epochs):
             elif numr ==3:
                 X_batch = torch.flip(X_batch,[3,2])
                 y_batch = torch.flip(y_batch,[2,1])
-            
+
             elif numr==4:
                 X_batch = add_noise(X_batch)
                 # y_batch = add_noise(y_batch)
@@ -265,7 +265,7 @@ for epoch in range(args.epochs):
                 # start = timeit.default_timer()
                 y_out = model(X_batch)
                 # stop = timeit.default_timer()
-                # print('Time: ', stop - start) 
+                # print('Time: ', stop - start)
                 tmp2 = y_batch.detach().cpu().numpy()
                 tmp = y_out.detach().cpu().numpy()
                 tmp[tmp>=0.5] = 1
@@ -281,7 +281,7 @@ for epoch in range(args.epochs):
                 yval = tmp2
 
                 epsilon = 1e-20
-                
+
                 del X_batch, y_batch,tmp,tmp2, y_out
 
                 count = count + 1
@@ -290,18 +290,18 @@ for epoch in range(args.epochs):
                 fulldir = direc+"/{}/".format(epoch)
                 # print(fulldir+image_filename)
                 if not os.path.isdir(fulldir):
-                    
+
                     os.makedirs(fulldir)
-                
+
                 # cv2.imwrite(fulldir+"/outputs/"+image_filename, yHaT[0,1,:,:])
                 # cv2.imwrite(fulldir+'/gt_{}.png'.format(count), yval[0,:,:])
         fulldir = direc+"/{}/".format(epoch)
         torch.save(model.state_dict(), fulldir+args.model+".pth")
         torch.save(model.state_dict(), direc+"model.pth")
         tf1 = metric_list.get_results(normalize=count)['dice']
-        
+
         if bestdice<tf1:
-            bestdice = tf1 
-            print("bestdice = {}".format(bestdice))  
-            print(epoch) 
+            bestdice = tf1
+            print("bestdice = {}".format(bestdice))
+            print(epoch)
 

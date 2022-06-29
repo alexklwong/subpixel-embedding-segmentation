@@ -3,7 +3,7 @@ import torch.utils.data
 import data_utils
 
 
-class SPiNTrainingDataset(torch.utils.data.Dataset):
+class SPiNMRITrainingDataset(torch.utils.data.Dataset):
     '''
     Dataset for Subpixel Network (SPiN) to fetch
     (1) input scans (supports multimodal)
@@ -151,7 +151,7 @@ class SPiNTrainingDataset(torch.utils.data.Dataset):
         return self.n_sample
 
 
-class SPiNInferenceDataset(torch.utils.data.Dataset):
+class SPiNMRIInferenceDataset(torch.utils.data.Dataset):
     '''
     Dataset for Subpixel Network (SPiN) to fetch entire scan volumes (supports multimodal)
 
@@ -228,6 +228,170 @@ class SPiNInferenceDataset(torch.utils.data.Dataset):
                 scan,
                 shape=(self.n_height, self.n_width),
                 interp_type='nearest',
+                data_format=scan_data_format)
+
+        return scan.astype(np.float32)
+
+    def __len__(self):
+        return self.n_sample
+
+class SPiNRGBTrainingDataset(torch.utils.data.Dataset):
+    '''
+    Dataset for Subpixel Network (SPiN) to fetch
+    (1) input RGB scans
+    (2) ground truth annotations
+
+    Args:
+        scan_paths : list[str]
+            list of paths to RGB images
+        ground_truth_paths : list[str]
+            list of paths to annotations
+        shape : tuple[int]
+            (n_height, n_width) tuple
+        padding_constant : int
+            value to pad by
+    '''
+    def __init__(self,
+                 scan_paths,
+                 ground_truth_paths,
+                 shape,
+                 padding_constant=0):
+
+        # Make sure that input is list of list of strings
+
+        assert isinstance(scan_paths, list)
+        self.n_sample = len(scan_paths)
+
+        # Dataset paths and shape
+        self.scan_paths = scan_paths
+
+        # Shape check
+        assert len(shape) == 2
+        self.n_height = shape[0]
+        self.n_width = shape[1]
+
+        if ground_truth_paths is not None:
+            self.ground_truth_paths = ground_truth_paths
+        else:
+            self.ground_truth_paths = [None] * self.n_sample
+
+        # Augmentation settings
+        self.padding_constant = padding_constant
+
+    def __getitem__(self, index):
+        '''
+        Fetches scan(s) (and annotation if available)
+        Args:
+            index : int
+                index of sample in dataset
+        Returns
+            (scan, annotation) : tuple[numpy]
+                tuple of numpy arrays of scan and annotations
+        '''
+
+        # Load in scan
+        scan = np.load(self.scan_paths[index]).astype(np.float32)  # Loads as H x W x 3
+
+        # Each scan is H x W x C
+        annotation = np.load(self.ground_truth_paths[index]).astype(np.float32)
+
+        # Account for noise and normalize
+        annotation = np.where(annotation > 0, 1, 0)
+        # Expand dims for annotation
+        annotation = np.expand_dims(annotation, axis=0)
+
+        # Scan shape: H x W x C -> C x H x W
+        scan = np.transpose(scan, (2, 0, 1))
+
+        scan_data_format = 'CHW' if len(scan.shape) == 3 else 'CDHW'
+        annotation_data_format = 'CHW'
+
+        # Resize from C x H x W to C x h x w
+        do_crop = \
+            self.n_height is not None and \
+            self.n_width is not None and \
+            scan.shape[1] > self.n_height and \
+            scan.shape[2] > self.n_width
+
+        if do_crop:
+            x_top_left = np.random.randint(0, scan.shape[2] - self.n_width)
+            y_top_left = np.random.randint(0, scan.shape[1] - self.n_height)
+
+            scan = data_utils.crop(
+                T=scan,
+                top_left=(y_top_left, x_top_left),
+                shape=(self.n_height, self.n_width),
+                data_format=scan_data_format)
+
+            annotation = data_utils.crop(
+                T=annotation,
+                top_left=(y_top_left, x_top_left),
+                shape=(self.n_height, self.n_width),
+                data_format=scan_data_format)
+
+        return (scan.astype(np.float32), annotation.astype(np.int64)) #, small_lesion_map.astype(np.int64))
+
+    def __len__(self):
+        return self.n_sample
+
+
+class SPiNRGBInferenceDataset(torch.utils.data.Dataset):
+    '''
+    Args:
+        scan_paths : list[str]
+            list of paths to RGB images
+        shape : tuple[int]
+            (n_height, n_width) tuple
+    '''
+    def __init__(self, scan_paths, shape):
+
+        # Make sure that input is list of list of strings
+
+        assert isinstance(scan_paths, list)
+        self.n_sample = len(scan_paths)
+
+        # Dataset paths and shape
+        self.scan_paths = scan_paths
+
+        # Shape check
+        assert len(shape) == 2
+        self.n_height = shape[0]
+        self.n_width = shape[1]
+
+
+    def __getitem__(self, index):
+        '''
+        Fetches scan(s) (and annotation if available)
+        Args:
+            index : int
+                index of sample in dataset
+        Returns
+            numpy[float32] : C x H x W input image scan
+        '''
+
+        # Load in scan
+        scan = np.load(self.scan_paths[index]).astype(np.float32)  # Loads as H x W x 3
+
+        # Scan shape: H x W x C -> C x H x W
+        scan = np.transpose(scan, (2, 0, 1))
+
+        scan_data_format = 'CHW' if len(scan.shape) == 3 else 'CDHW'
+
+        # Resize from C x H x W to C x h x w
+        do_crop = \
+            self.n_height is not None and \
+            self.n_width is not None and \
+            scan.shape[1] > self.n_height and \
+            scan.shape[2] > self.n_width
+
+        if do_crop:
+            x_top_left = np.random.randint(0, scan.shape[2] - self.n_width)
+            y_top_left = np.random.randint(0, scan.shape[1] - self.n_height)
+
+            scan = data_utils.crop(
+                T=scan,
+                top_left=(y_top_left, x_top_left),
+                shape=(self.n_height, self.n_width),
                 data_format=scan_data_format)
 
         return scan.astype(np.float32)

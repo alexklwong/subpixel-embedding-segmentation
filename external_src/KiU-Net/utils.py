@@ -152,7 +152,7 @@ class ImageToImage2D(Dataset):
         # print(image.shape)
         # read mask image
         mask = cv2.imread(os.path.join(self.output_path, image_filename[: -3] + "png"),0)
-        
+
         # correct dimensions if needed
         image, mask = correct_dims(image, mask)
         # print(image.shape)
@@ -186,7 +186,7 @@ class Image2D(Dataset):
            dataset.
 
     Args:
-        
+
         dataset_path: path to the dataset. Structure of the dataset should be:
             dataset_path
               |-- images
@@ -232,7 +232,7 @@ def chk_mkdir(*paths: Container) -> None:
     """
     Creates folders if they do not exist.
 
-    Args:        
+    Args:
         paths: Container of paths to be created.
     """
     for path in paths:

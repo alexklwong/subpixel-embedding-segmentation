@@ -1,0 +1,51 @@
+export CUDA_VISIBLE_DEVICES=1
+
+python src/train_spin.py \
+--train_multimodal_scan_paths training/rite/traintest/rite_train_scans.txt \
+--train_ground_truth_path training/rite/traintest/rite_train_ground_truths_vessel.txt \
+--val_multimodal_scan_paths testing/rite/traintest/rite_test_scans.txt \
+--val_ground_truth_path testing/rite/traintest/rite_test_ground_truths_vessel.txt \
+--n_batch 8 \
+--n_chunk 1 \
+--n_height 128 \
+--n_width 128 \
+--dataset_normalization standard \
+--dataset_means 79.09129 \
+--dataset_stddevs 70.204414 \
+--encoder_type_subpixel_embedding resnet5_subpixel_embedding \
+--n_filters_encoder_subpixel_embedding 16 16 16 \
+--decoder_type_subpixel_embedding subpixel \
+--n_filter_decoder_subpixel_embedding 16 \
+--output_channels_subpixel_embedding 8 \
+--output_func_subpixel_embedding linear \
+--encoder_type_segmentation resnet18 \
+--n_filters_encoder_segmentation 32 64 128 196 196 \
+--resolutions_subpixel_guidance 0 1 \
+--n_filters_subpixel_guidance 8 8 \
+--n_convolutions_subpixel_guidance 1 1 \
+--decoder_type_segmentation subpixel_guidance learnable_downsampler \
+--n_filters_decoder_segmentation 196 128 64 32 16 16 \
+--n_filters_learnable_downsampler 16 16 \
+--kernel_sizes_learnable_downsampler 3 3 \
+--weight_initializer kaiming_uniform \
+--activation_func leaky_relu \
+--use_batch_norm \
+--learning_rates 3e-4 1e-4 5e-5 \
+--learning_schedule 100 200 300 \
+--augmentation_probabilities 1.00 0.50 \
+--augmentation_schedule 150 300 \
+--augmentation_flip_type horizontal vertical \
+--augmentation_rotate 30 \
+--augmentation_noise_type gaussian \
+--augmentation_noise_spread 1e-2 \
+--augmentation_resize_and_pad 1.0 1.1 \
+--w_weight_decay_subpixel_embedding 0.0 \
+--loss_func_segmentation cross_entropy weight_decay \
+--w_weight_decay_segmentation 0.0 \
+--w_positive_class 1.50 \
+--n_summary 1000 \
+--n_checkpoint 500 \
+--checkpoint_path \
+trained_spin_models/rite/spin_traintest/ \
+--device gpu \
+--n_thread 8

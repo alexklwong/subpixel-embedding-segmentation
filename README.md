@@ -81,16 +81,53 @@ Unlike hand crafted downsampling methods such as bilinear or nearest-neighbor in
 <a name="atlas-results-teaser"></a>
 
 ## Setting up your virtual environment <a name="setting-up"></a>
-We will create a virtual environment with the necessary dependencies
+We assume CUDA 11.1, 11.0, 10.2, or 10.1 is installed
+
+We will create a virtual environment with the necessary dependencies, please install the appropriate torch version based on your CUDA version.
 ```
 virtualenv -p /usr/bin/python3.7 spin-py37env
 source spin-py37env/bin/activate
 pip install opencv-python scipy scikit-learn scikit-image matplotlib nibabel gdown numpy Pillow
-pip install torch==1.7.1 torchvision==0.8.2 tensorboard==2.3.0
+
+# CUDA 11.0
+pip install torch==1.7.1+cu110 torchvision==0.8.2+cu110 -f https://download.pytorch.org/whl/torch_stable.html
+
+# CUDA 10.2
+pip install torch==1.7.1 torchvision==0.8.2
+
+# CUDA 10.1
+pip install torch==1.7.1+cu101 torchvision==0.8.2+cu101 -f https://download.pytorch.org/whl/torch_stable.html
+
+pip install tensorboard==2.3.0
 ```
 
 ## Setting up your datasets
-For datasets, we will use the Anatomical Tracings of Lesion After Stroke ([ATLAS][atlas-paper]) public dataset. You will need to sign an usage agreement in order to download the dataset. Please visit their [dataset page][atlas-dataset], follow the instructions (sign a form and email it to the maintainers) to obtain the data, and save them on your machine.
+
+### ATLAS
+For datasets, we will use the Anatomical Tracings of Lesion After Stroke ([ATLAS][atlas-paper]) public dataset. You will need to sign an usage agreement in order to download the dataset. Please visit their [dataset page][atlas-dataset], follow the instructions (sign a form and email it to the maintainers) to obtain the data, and save them on your machine. The agreement should be title "ICPSR 3668 The Anatomical Tracings of Lesions after Stroke (ATLAS) Dataset - Release 1.2, 2018".
+
+Once you have downloaded the ATLAS dataset (`ATLAS R 1.2.zip`), please unzip it to find
+```
+ATLAS R 1.2
+|---- 20171106_ATLAS_Meta-Data_Release_1.1_Updated.xlsx
+|---- native.zip
+|---- standard_MNI.zip
+|---- Supplementary_Information_Scanner_Header_Attributes.xlsx
+```
+
+Unzipping `standard_MNI.zip` will give `standard_part1.zip` and `standard_part2.zip` (post processed data), and doing so with `native.zip` will give `native_1.zip` and `native_2.zip`. Each patient data is compressed in those files. We will use the standard dataset. Please do the following to set up your dataset:
+```
+mkdir atlas
+mkdir atlas/atlas_native
+mkdir atlas/atlas_standard
+mv ATLAS\ R\ 1.2 atlas/archive
+unzip atlas/archive/standard_MNI.zip -d atlas/archive
+unzip atlas/archive/native.zip -d atlas/archive
+unzip atlas/archive/standard_part1.zip -d atlas/atlas_standard/
+unzip atlas/archive/standard_part2.zip -d atlas/atlas_standard/
+unzip atlas/archive/native_1.zip -d atlas/atlas_native/
+unzip atlas/archive/native_2.zip -d atlas/atlas_native/
+```
 
 Our repository provides the training and testing (referred to as traintest) data split in the `data_split` folder. The setup script will create numpy (.npy) files from .nii files provided in the raw dataset. It will also create `training` and `validation` directories containing text (.txt) files with relative paths to all data samples.
 
@@ -110,6 +147,36 @@ python setup/setup_dataset_atlas.py
 Additionally, please run the following for the small lesion subset discussed in our paper:
 ```
 python setup/setup_dataset_atlas_small_lesion.py
+```
+
+### GLaS/WARWICK
+
+Download the GLaS dataset from the [GLaS Website](glas-dataset). Assuming you have followed the steps above for the ATLAS dataset, navigate to your root directory and run the following:
+
+```
+ln -s /path/to/glas data/
+
+source spin-py37env/bin/activate
+
+python setup/setup_dataset_warwick.py
+```
+
+Your training and testing path .txt files will be in `training/warwick/traintest` and `testing/warwick/traintest` respectively. Because no explicit train/val split is provided, we train on the entire training set and validate and test on the test set.
+
+### RITE
+
+To obtain the RITE dataset, follow the instructions on [this page](rite-dataset).
+
+Once you download `AV_groundTruth.zip`, unzip the file into a directory using `unzip AV_groundTruth.zip -d <your/directory>`. For example, `unzip AV_groundTruth.zip -d RITE_raw`. The `-d` flag will save the contents into the directory `RITE_raw`.
+
+You will need to register in order to be granted access. Assuming you have followed the steps for the ATLAS datset, navigate to your root directory and run the following:
+
+```
+ln -s </path/to/RITE_raw>/AV_groundTruth data/
+
+source spin-py37env/bin/activate
+
+python setup/setup_dataset_rite.py
 ```
 
 ## Downloading our pretrained models <a name="downloading-pretrained-models"></a>
@@ -207,6 +274,26 @@ Note: the frequency of logging tensorboard summaries and storing checkpoints are
 To run the works we compare to on the provided data splits (training, testing, small lesion subset), you may use our evaluation bash scripts located in the `bash` directory. All of the checkpoints were the best (amongst several runs) produced by the methods below and should reproduce the numbers in the tables above (Table 2, 3 in main text).
 
 ### U-Net
+Because we are using our in-house version of U-Net, there is no need create a new virtual environment.
+You may use spin-py37env to run this method. If you want to keep it as a separate environment for cleaniness you can do:
+```
+virtualenv -p /usr/bin/python3.7 unet-py37env
+source unet-py37env/bin/activate
+pip install opencv-python scipy scikit-learn scikit-image matplotlib nibabel gdown numpy Pillow
+
+# CUDA 11.0
+pip install torch==1.7.1+cu110 torchvision==0.8.2+cu110 -f https://download.pytorch.org/whl/torch_stable.html
+
+# CUDA 10.2
+pip install torch==1.7.1 torchvision==0.8.2
+
+# CUDA 10.1
+pip install torch==1.7.1+cu101 torchvision==0.8.2+cu101 -f https://download.pytorch.org/whl/torch_stable.html
+
+pip install tensorboard==2.3.0
+
+```
+
 To evaluate the U-Net model the testing set:
 ```
 bash bash/u-net/evaluate/evaluate_unet_traintest.sh
@@ -222,8 +309,122 @@ To train U-Net model on ATLAS on the proposed training and testing split:
 bash bash/u-net/train/train_unet_traintest.sh
 ```
 
+### X-Net <a name="x-net"></a>
+X-Net source code is in Tensorflow 1.10, so we will need to create a new virtual environment to avoid stepping on toes:
+```
+virtualenv -p /usr/bin/python3.6 xnet-py36env
+source xnet-py36env/bin/activate
+pip install opencv-python scipy scikit-learn scikit-image matplotlib nibabel gdown numpy Pillow
+pip install gdown --no-use-pep517
+pip install future==0.18.2 gast==0.5.0 tensorflow-gpu==1.10 h5py==2.7.0 keras==2.2.0
+```
+
+To evaluate the X-Net model with the testing set:
+
+Make sure you have generated the `train.h5` and `data_order.txt` with:
+```
+source xnet-py36env/bin/activate
+bash bash/generate_h5/gen.sh
+```
+first. The same h5 and txt files are used by KiU-Net and CLCI-Net as well.
+
+To predict with the X-Net model:
+```
+source xnet-py36env/bin/activate
+bash bash/X-Net/predict.sh
+```
+Meanwhile, we use our own evaluation function to evaluate the output results, which requires `spin-py37env` environment. (See [Setup](#setting-up))
+To evaluate the predicted result:
+```
+source spin-py37env/bin/activate
+bash bash/X-Net/eval.sh
+```
+
+### CLCI-Net
+CLCI-Net source code is in Tensorflow 1.10, so we will need to create a new virtual environment. Dependencies are the same as X-Net so you may re-use  (See [X-Net](#x-net)), otherwise if you want to keep separate environments for cleaniness, you can follow these commands
+```
+virtualenv -p /usr/bin/python3.6 clcinet-py36env
+source clcinet-py36env/bin/activate
+pip install opencv-python scipy scikit-learn scikit-image matplotlib nibabel gdown numpy Pillow
+pip install gdown --no-use-pep517
+pip install future==0.18.2 gast==0.5.0 tensorflow-gpu==1.10 h5py==2.7.0 keras==2.2.0
+```
+
+To evaluate the CLCI-Net model with the testing set:
+
+Make sure you have generated the `train.h5` and `data_order.txt` (See [X-Net](#x-net))
+
+To predict with CLCI-Net model:
+```
+source xnet-py36env/bin/activate
+bash bash/CLCI-Net/predict.sh
+```
+
+Meanwhile, we use our own evaluation function to evaluate the output results, which requires `spin-py37env` environment. (See [Setup](#setting-up))
+To evaluate the predicted result:
+```
+source spin-py37env/bin/activate
+bash bash/CLCI-Net/eval.sh
+```
+
+### DUnet
+DUNet source code is in Tensorflow 1.10, so we will need to create a new virtual environment. Dependencies are the same as X-Net so you may re-use  (See [X-Net](#x-net)), otherwise if you want to keep separate environments for cleaniness, you can follow these commands
+```
+virtualenv -p /usr/bin/python3.6 dunet-py36env
+source dunet-py36env/bin/activate
+pip install opencv-python scipy scikit-learn scikit-image matplotlib nibabel gdown numpy Pillow
+pip install gdown --no-use-pep517
+pip install future==0.18.2 gast==0.5.0 tensorflow-gpu==1.10 h5py==2.7.0 keras==2.2.0
+```
+
+To evaluate the DUnet model with the testing set:
+
+To predict and evaluate the DUnet model:
+```
+source xnet-py36env/bin/activate
+bash bash/DUnet/predict.sh
+```
+
+### KiU-Net
+KiU-Net is implemented in Torch, but still uses some dependencies from X-Net, DUnet and CLCI-Net. So we will create a new environment for it:
+```
+virtualenv -p /usr/bin/python3.7 kiunet-py37env
+source kiunet-py37env/bin/activate
+pip install opencv-python scipy scikit-learn scikit-image matplotlib nibabel gdown numpy Pillow
+
+# CUDA 11.0
+pip install torch==1.7.1+cu110 torchvision==0.8.2+cu110 -f https://download.pytorch.org/whl/torch_stable.html
+
+# CUDA 10.2
+pip install torch==1.7.1 torchvision==0.8.2
+
+# CUDA 10.1
+pip install torch==1.7.1+cu101 torchvision==0.8.2+cu101 -f https://download.pytorch.org/whl/torch_stable.html
+
+pip install h5py==2.7.0 tensorboard==2.3.0
+```
+
+To evaluate the KiU-Net model with the testing set:
+
+Make sure you have generated the `train.h5` and `data_order.txt` (See [X-Net](#x-net))
+
+To process the testing data, run:
+```
+source xnet-py36env/bin/activate
+bash bash/KiU-Net/process_data.sh
+```
+
+To predict and evaluate with KiU-Net model, run:
+```
+source kiunet-py37env/bin/activate
+bash bash/KiU-Net/predict.sh
+```
+
+
 ## License and disclaimer <a name="license-disclaimer"></a>
 This software is property of the UC Regents, and is provided free of charge for research purposes only. It comes with no warranties, expressed or implied, according to these [terms and conditions](license). For commercial use, please contact [UCLA TDG](https://tdg.ucla.edu).
 
 [atlas-paper]: https://www.nature.com/articles/sdata201811.pdf
 [atlas-dataset]: https://www.icpsr.umich.edu/web/ADDEP/studies/36684/versions/V3
+[glas-dataset]: https://warwick.ac.uk/fac/cross_fac/tia/data/glascontest/download/
+[rite-dataset]: https://medicine.uiowa.edu/eye/rite-dataset

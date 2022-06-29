@@ -1,6 +1,6 @@
 # KiU-Net
 
-This folder contains the adapted code from the official KiU-Net repo [here](https://github.com/jeya-maria-jose/KiU-Net-pytorch). 
+This folder contains the adapted code from the official KiU-Net repo [here](https://github.com/jeya-maria-jose/KiU-Net-pytorch).
 
 ### Running the trained checkpoints
 
@@ -10,7 +10,14 @@ This folder contains the adapted code from the official KiU-Net repo [here](http
     mkdir data
     ```
 
-2. Download the `train.h5` file and `data_order.txt` file from [here]() and place them in the data folder
+2. If you haven't already generated the h5 files. Do:
+
+    ```
+    cd ../..
+    bash bash/generate_h5/gen.sh
+    ```
+    This will generate the h5 file containing the data used for training as well as the `data_order.txt`
+
 
 3. Then run:
 
@@ -19,14 +26,8 @@ This folder contains the adapted code from the official KiU-Net repo [here](http
     bash bash/KiU-Net/process_data.sh
     ```
 
-    The data file will be processed into train folder and validation folder. Do:
-    ```
-    ls external_src/KiU-Net/data
-    ```
-    and you should see 
-    ```
-    data_order.txt  train  train.h5  validation
-    ```
+    The data file will be processed into train folder and validation folder under `data/KiU-Net`.
+
 
 4. Prepare the checkpoint. Do:
     ```
@@ -35,7 +36,7 @@ This folder contains the adapted code from the official KiU-Net repo [here](http
     ```
     and download the trained checkpoints from [here]() and put them into the `trained_model` folder
 
-5. Modify the bash for prediction if needed. 
+5. Modify the bash for prediction if needed.
 
     `--loaddirec` : path to the trained checkpoint
 

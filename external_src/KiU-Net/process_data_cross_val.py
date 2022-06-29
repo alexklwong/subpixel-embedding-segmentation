@@ -13,7 +13,7 @@ def get_data_to_index_dict(file):
     data = []
     with open(file, 'r') as f:
         data = f.readlines()
-    
+
     data_to_index_dict = {d.strip():i for i, d in enumerate(data)}
     return data_to_index_dict
 
@@ -38,7 +38,7 @@ def read_data_split(data_split_path, fold=None):
     val_data = []
     with open(val_image_paths, "r") as val_data_file:
         val_data = val_data_file.readlines()
-    
+
     val_data = [os.path.split(data)[0] for data in val_data]
     val_data = [os.path.join("data/atlas/atlas_standard", data) for data in val_data]
 
@@ -102,7 +102,7 @@ if __name__ == "__main__":
 
                 img.save(train_img_file_path)
                 lb.save(train_label_file_path)
-        
+
         for j, index in enumerate(val_index):
             patient_image = data[index*189:(index + 1)*189]
             patient_label = label[index*189:(index + 1)*189]

@@ -2,6 +2,7 @@ import os
 import numpy as np
 import nibabel as nib
 import torch
+import cv2
 
 
 def read_paths(filepath):
@@ -38,6 +39,24 @@ def write_paths(filepath, paths):
     with open(filepath, 'w') as o:
         for idx in range(len(paths)):
             o.write(paths[idx] + '\n')
+
+def save_numpy(array, path):
+    '''
+    Save numpy array to path; create directory if it doesn't exist
+
+    Arg(s):
+        array : np.array
+            Data to save
+        path : str
+            Path to save .npy file to
+
+    Returns:
+        None
+    '''
+    if not os.path.exists(os.path.dirname(path)):
+        os.makedirs(os.path.dirname(path))
+
+    np.save(path, array)
 
 def save_numpy_to_nii(np_arr, path):
     '''
@@ -171,6 +190,58 @@ def parse_small_lesion_txt(path, n_samples=None):
         assert n_samples == len(lines)
     return lines
 
+def crop(T, top_left, shape, data_format='CHW'):
+    '''
+    Crops tensor starting from the top left corner into tensor of specified shape
+    Arg(s):
+        T : numpy
+            input tensor
+        top_left : tuple(int, int)
+            (y, x) tuple of top left corner of crop
+        shape : tuple(int, int)
+            (h, w) tuple of height and width of crop
+        data_format : str
+            'CHW', 'HWC', 'CDHW', 'DHWC'
+    Returns:
+        numpy : cropped tensor
+    '''
+
+    n_dim = len(T.shape)
+
+    if n_dim < 3 or n_dim > 4:
+        raise ValueError('Unsupport data shape: {}'.format(T.shape))
+
+    c_height, c_width = shape
+
+    # Get start of crop
+    y_start = top_left[0]
+    x_start = top_left[1]
+
+    # Get the height and width of the input
+    if data_format == 'CHW' or data_format == 'DHWC':
+        n_height, n_width = T.shape[1:3]
+    elif data_format == 'HWC':
+        n_height, n_width = T.shape[0:2]
+    elif data_format == 'CDHW':
+        n_height, n_width = T.shape[2:4]
+    else:
+        raise ValueError('Unsupport data format: {}'.format(data_format))
+
+    assert y_start < n_height and x_start < n_width
+
+    # Get end of crop
+    y_end = np.min([y_start + c_height, n_height])
+    x_end = np.min([x_start + c_width, n_width])
+
+    if data_format == 'CHW':
+        return T[:, y_start:y_end, x_start:x_end]
+    elif data_format == 'HWC':
+        return T[y_start:y_end, x_start:x_end, :]
+    elif data_format == 'CDHW':
+        return T[:, :, y_start:y_end, x_start:x_end]
+    elif data_format == 'DHWC':
+        return T[:, y_start:y_end, x_start:x_end, :]
+
 def get_n_chunk(scan,
                 gt_scan_id,
                 n_chunk,
@@ -294,3 +365,89 @@ def constant_padding_template(shape,
     scan_temp = ones(shape) * constants
 
     return scan_temp
+
+def resize(T, shape, interp_type='lanczos', data_format='HWC'):
+    '''
+    Resizes a tensor
+    Args:
+        T : numpy
+            tensor to resize
+        shape : tuple[int]
+            (height, width) to resize tensor
+        interp_type : str
+            interpolation for resize
+        data_format : str
+            'CHW', or 'HWC', 'CDHW', 'DHWC'
+    Returns:
+        numpy : image resized to height and width
+    '''
+
+    if interp_type == 'nearest':
+        interp_type = cv2.INTER_NEAREST
+    elif interp_type == 'area':
+        interp_type = cv2.INTER_AREA
+    elif interp_type == 'bilinear':
+        interp_type = cv2.INTER_LINEAR
+    elif interp_type == 'lanczos':
+        interp_type = cv2.INTER_LANCZOS4
+    else:
+        raise ValueError('Unsupport interpolation type: {}'.format(interp_type))
+
+    if shape is None or any([x is None or x <= 0 for x in shape]):
+        return T
+
+    n_height, n_width = shape
+
+    # Resize tensor
+    if data_format == 'CHW':
+        # Tranpose from CHW to HWC
+        R = np.transpose(T, (1, 2, 0))
+
+        # Resize and transpose back to CHW
+        R = cv2.resize(R, dsize=(n_width, n_height), interpolation=interp_type)
+        R = np.reshape(R, (n_height, n_width, T.shape[0]))
+        R = np.transpose(R, (2, 0, 1))
+
+    elif data_format == 'HWC':
+        R = cv2.resize(T, dsize=(n_width, n_height), interpolation=interp_type)
+        R = np.reshape(R, (n_height, n_width, T.shape[2]))
+
+    elif data_format == 'CDHW':
+        # Transpose CDHW to DHWC
+        D = np.transpose(T, (1, 2, 3, 0))
+
+        # Resize and transpose back to CDHW
+        R = np.zeros((D.shape[0], n_height, n_width, D.shape[3]))
+
+        for d in range(R.shape[0]):
+            r = cv2.resize(D[d, ...], dsize=(n_width, n_height), interpolation=interp_type)
+            R[d, ...] = np.reshape(r, (n_height, n_width, D.shape[3]))
+
+        R = np.transpose(R, (3, 0, 1, 2))
+
+    elif data_format == 'DHWC':
+        R = np.zeros((T.shape[0], n_height, n_width, T.shape[3]))
+        for d in range(R.shape[0]):
+            r = cv2.resize(T[d, ...], dsize=(n_width, n_height), interpolation=interp_type)
+            R[d, ...] = np.reshape(r, (n_height, n_width, T.shape[3]))
+
+    else:
+        raise ValueError('Unsupport data format: {}'.format(data_format))
+
+    return R
+
+def get_scan_type(scan_path):
+    '''
+    Given a scan path return the data type ('MRI' or 'RGB')
+
+    Arg(s):
+        scan_path : str
+            path to a scan
+
+    Returns:
+        str : 'RGB' or 'MRI'
+    '''
+    if 'atlas' in scan_path:
+        return 'MRI'
+    elif 'warwick' in scan_path or 'rite' in scan_path:
+        return 'RGB'

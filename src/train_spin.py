@@ -21,9 +21,9 @@ parser.add_argument('--n_batch',
 parser.add_argument('--n_chunk',
     type=int, default=settings.N_CHUNK, help='Number of chunks or channels to process at a time')
 parser.add_argument('--n_height',
-    type=int, default=settings.O_HEIGHT, help='Height of of sample')
+    type=int, default=settings.O_HEIGHT, help='Height of of sample. -1 indicates full height')
 parser.add_argument('--n_width',
-    type=int, default=settings.O_WIDTH, help='Width of each sample')
+    type=int, default=settings.O_WIDTH, help='Width of each sample. 1 indicates full width')
 # Normalization settings
 parser.add_argument('--dataset_normalization',
     type=str, default='standard', help='Type of normalization: none, standard')
@@ -106,8 +106,6 @@ parser.add_argument('--w_weight_decay_subpixel_embedding',
 parser.add_argument('--loss_func_segmentation',
     nargs='+', type=str, default=settings.LOSS_FUNC_SEGMENTATION, help='Space delimited list of loss functions: %s' %
     settings.LOSS_FUNC_AVAILABLE_SEGMENTATION)
-parser.add_argument('--w_cross_entropy',
-    type=float, default=settings.W_CROSS_ENTROPY, help='Weight of cross entropy loss')
 parser.add_argument('--w_weight_decay_segmentation',
     type=float, default=settings.W_WEIGHT_DECAY, help='Weight of weight decay regularizer')
 parser.add_argument('--w_positive_class',
@@ -160,6 +158,12 @@ if __name__ == '__main__':
         assert os.path.isfile(path)
 
     assert os.path.isfile(args.val_ground_truth_path)
+
+    # Convert -1 for n_height and n_width to None's
+    if args.n_height == -1:
+        args.n_height = None
+    if args.n_width == -1:
+        args.n_width = None
 
     train(
         train_multimodal_scan_paths=args.train_multimodal_scan_paths,
@@ -215,7 +219,6 @@ if __name__ == '__main__':
         w_weight_decay_subpixel_embedding=args.w_weight_decay_subpixel_embedding,
         # Segmentation loss function
         loss_func_segmentation=args.loss_func_segmentation,
-        w_cross_entropy=args.w_cross_entropy,
         w_weight_decay_segmentation=args.w_weight_decay_segmentation,
         w_positive_class=args.w_positive_class,
         # Checkpoint settings

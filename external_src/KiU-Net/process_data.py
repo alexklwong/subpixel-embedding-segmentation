@@ -24,15 +24,15 @@ def get_data_to_index_dict(file):
     data = []
     with open(file, 'r') as f:
         data = f.readlines()
-    
+
     data_to_index_dict = {d.strip():i for i, d in enumerate(data)}
     return data_to_index_dict
 
 def read_data_split(data_split_path):
     train_split_path = os.path.join(data_split_path, 'training')
     train_image_paths = os.path.join(train_split_path, "train_scans.txt")
-    val_split_path = os.path.join(data_split_path, "validation")
-    val_image_paths = os.path.join(val_split_path, "val_scans.txt")
+    val_split_path = os.path.join(data_split_path, "testing")
+    val_image_paths = os.path.join(val_split_path, "test_scans.txt")
 
     data_to_index_dict = get_data_to_index_dict(data_order_path)
     print(data_to_index_dict)
@@ -49,7 +49,7 @@ def read_data_split(data_split_path):
     val_data = []
     with open(val_image_paths, "r") as val_data_file:
         val_data = val_data_file.readlines()
-    
+
     val_data = [os.path.split(data)[0] for data in val_data]
     val_data = [os.path.join("data/atlas/atlas_standard", data) for data in val_data]
 
@@ -72,7 +72,7 @@ if __name__ == "__main__":
         data_list = [os.path.split(d.rstrip())[1]+".npy" for d in data_list]
 
 
-    train_index, val_index = read_data_split('data_split/atlas/train_val')
+    train_index, val_index = read_data_split('data_split/atlas/traintest')
     train_count = 0
 
     train_img_path = os.path.join(train_path, 'img')
@@ -113,7 +113,7 @@ if __name__ == "__main__":
 
             img.save(train_img_file_path)
             lb.save(train_label_file_path)
-    
+
     for j, index in enumerate(val_index):
         patient_image = data[index*189:(index + 1)*189]
         patient_label = label[index*189:(index + 1)*189]

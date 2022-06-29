@@ -56,7 +56,7 @@ def colorize(T, colormap='magma'):
     # Convert back to tensor
     return torch.from_numpy(color.astype(np.float32))
 
-def save_prediction_img(chunk,
+def save_MRI_prediction_img(chunk,
                         idx,
                         chunk_idx,
                         output_segmentation,
@@ -70,6 +70,8 @@ def save_prediction_img(chunk,
     Arg(s):
         chunk : numpy[float32]
             1 x C x D x H x W input scan, D refers to number of modalities
+            OR
+            1 x C x H x W input scan (RGB: C = 3)
         idx : int
             patient scan index (0 indexed)
         chunk_idx : int
@@ -164,3 +166,115 @@ def save_prediction_img(chunk,
                 os.makedirs(os.path.dirname(visual_path))
 
             mpimg.imsave(visual_path, visual, cmap=colormap, vmin=0.0, vmax=1.0)
+
+def save_RGB_prediction_img(chunk,
+                        idx,
+                        chunk_idx,
+                        output_segmentation,
+                        output_segmentation_soft,
+                        ground_truth_2d,
+                        visual_paths,
+                        lesion_sizes=None):
+    '''
+    For each 2D prediction, save original scan (BW), prediction (color, BW), and GT (color, BW)
+
+    Arg(s):
+        chunk : numpy[float32]
+            1 x 3 x H x W input scan
+            OR
+            3 x H x W input scan
+        idx : int
+            patient scan index (0 indexed)
+        chunk_idx : int
+            which chunk of patient scan (0 indexed)
+        output_segmentation : numpy[float32]
+            H x W segmentation prediction
+        output_segmentation_soft : numpy[float32]
+            softmax prediction
+        ground_truth : numpy[float32]
+            H x W ground truth annotation for chunk of scan
+        visual_paths : list[str]
+            1 element for each modality for path to save each modality img
+        lesion_sizes : list[float] (optional)
+            list of relative lesion sizes
+    '''
+    lesion_size = np.sum(ground_truth_2d)
+
+    if lesion_size > 0 and lesion_sizes is not None:
+        lesion_sizes.append(np.round(lesion_size / ground_truth_2d.size, 4))
+
+    for modality_id in range(len(visual_paths)):
+        if len(chunk.shape) == 4:
+            chunk = chunk[0, ...]
+
+        if len(chunk.shape) != 3:
+            raise ValueError("RGB visualizations only available for tensors with 3 or 4 dimensions. Received {}-dimension tensor".format(len(chunk.shape)))
+
+        chunk = np.transpose(chunk, (1, 2, 0)).copy(order='C')
+        # Add 1's in C dimension to convert from RGB -> RGBA
+        alphas = np.ones((chunk.shape[0], chunk.shape[1], 1))
+        chunk = np.concatenate([chunk, alphas], axis=-1)
+
+        # color lesions:
+        viridis = plt.get_cmap('viridis', 256)
+
+        output_segmentation_colored = viridis(output_segmentation_soft)
+        output_segmentation_gray = cm.gray(output_segmentation.astype(np.float32))
+        viridis = plt.get_cmap('viridis', 2)
+        ground_truth_2d_colored = viridis(ground_truth_2d)
+        ground_truth_2d_gray = cm.gray(ground_truth_2d.astype(np.float32))
+
+        # overlay on gray scans:
+        overlay_eps = 0.5
+
+        chunk = min_max_normalization(
+            chunk,
+            dataset_min=np.min(chunk),
+            dataset_max=np.max(chunk))
+        chunk_pred = np.copy(chunk, order='C')
+        chunk_gt = np.copy(chunk, order='C')
+
+        chunk_pred[output_segmentation_soft > overlay_eps, :] = output_segmentation_colored[output_segmentation_soft > overlay_eps, :]
+        chunk_gt[ground_truth_2d > overlay_eps, :] = ground_truth_2d_colored[ground_truth_2d > overlay_eps, :]
+
+        # concatenate the image, prediction, and ground truth overlays in one image
+        combined = np.concatenate([chunk, chunk_pred, chunk_gt], axis=1)
+        # Create paths to store images as .png
+        image_scan_color_path = os.path.join(
+            visual_paths[modality_id],
+            'scan_color',
+            'scan_color_patient%d.png' % (idx))
+        image_pred_color_path = os.path.join(
+            visual_paths[modality_id],
+            'pred_color_overlay',
+            'pred_color_patient%d.png' % (idx))
+        image_pred_gray_path = os.path.join(
+            visual_paths[modality_id],
+            'pred_gray',
+            'pred_gray_patient%d.png' % (idx))
+        image_gt_color_path = os.path.join(
+            visual_paths[modality_id],
+            'gt_color_overlay',
+            'gt_color_patient%d.png' % (idx))
+        image_gt_gray_path = os.path.join(
+            visual_paths[modality_id],
+            'gt_gray',
+            'gt_gray_patient%d.png' % (idx))
+        combined_color_path = os.path.join(
+            visual_paths[modality_id],
+            'combined_color',
+            'combined_color_patient%d.png' % (idx))
+
+        visual_outputs = [
+            (image_scan_color_path, chunk),
+            (image_pred_color_path, chunk_pred),
+            (image_pred_gray_path, output_segmentation_gray),
+            (image_gt_color_path, chunk_gt),
+            (image_gt_gray_path, ground_truth_2d_gray),
+            (combined_color_path, combined)
+        ]
+        for (visual_path, visual) in visual_outputs:
+
+            if not os.path.exists(os.path.dirname(visual_path)):
+                os.makedirs(os.path.dirname(visual_path))
+            mpimg.imsave(visual_path, visual, vmin=0.0, vmax=1.0)
