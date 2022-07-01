@@ -104,7 +104,10 @@ pip install tensorboard==2.3.0
 ## Setting up your datasets
 
 ### ATLAS
-For datasets, we will use the Anatomical Tracings of Lesion After Stroke ([ATLAS][atlas-paper]) public dataset. You will need to sign an usage agreement in order to download the dataset. Please visit their [dataset page][atlas-dataset], follow the instructions (sign a form and email it to the maintainers) to obtain the data, and save them on your machine. The agreement should be title "ICPSR 3668 The Anatomical Tracings of Lesions after Stroke (ATLAS) Dataset - Release 1.2, 2018".
+For datasets, we will use the Anatomical Tracings of Lesion After Stroke ([ATLAS][atlas-paper]) public dataset. You will need to sign an usage agreement in order to download the dataset. Please visit their [dataset page][atlas-dataset], follow the instructions (sign a form and email it to the maintainers) to obtain the data, and save them on your machine. The agreement should be title "ICPSR 3668 The Anatomical Tracings of Lesions after Stroke (ATLAS) Dataset - Release 1.2, 2018". Since the dataset is still being updated, to obtain version 1.2, you may also download it here:
+```
+https://drive.google.com/file/d/1fRFyufkOM_xILAn7ja4fHJIfhSmuJvh5/view?usp=sharing
+```
 
 Once you have downloaded the ATLAS dataset (`ATLAS R 1.2.zip`), please unzip it to find
 ```
